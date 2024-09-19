@@ -60,10 +60,11 @@ export default function EmployeeBonusCalculator() {
     bonusPercentages: [1, 2, 3, 4, 5],
     salesGrowthThresholds: [0, 5, 10, 15, 20],
     businessGrowthThresholds: [0, 2.5, 5, 7.5, 10],
-    retainedClientsBonusMultiplier: 1000,
-    newClientsBonusMultiplier: 2000,
-    clientsManagedBonusMultiplier: 1500,
-    policiesBonusMultiplier: 500
+    retainedClientsBonusMultiplier: 1,
+    newClientsBonusMultiplier: 1.5,
+    clientsManagedBonusMultiplier: 1,
+    policiesBonusMultiplier: 1.25,
+    totalBonusPercentage: 5 // Default value
   })
 
   const reportRef = useRef<HTMLDivElement>(null)
@@ -89,23 +90,42 @@ export default function EmployeeBonusCalculator() {
   }
 
   const calculateBonus = () => {
-    const salesGrowth = (formData.currentMonthSales - formData.lastYearSameMonthSales) / formData.lastYearSameMonthSales * 100
-    const businessGrowth = (formData.currentMonthBookOfBusiness - formData.lastYearSameMonthBookOfBusiness) / formData.lastYearSameMonthBookOfBusiness * 100
-    
-    let bonusPercentage = settings.bonusPercentages[0]
-    for (let i = 1; i < 5; i++) {
-      if (salesGrowth >= settings.salesGrowthThresholds[i] && businessGrowth >= settings.businessGrowthThresholds[i]) {
-        bonusPercentage = settings.bonusPercentages[i]
-      }
+    const salesGrowth = (formData.currentMonthSales - formData.lastYearSameMonthSales) / formData.lastYearSameMonthSales * 100;
+    const businessGrowth = (formData.currentMonthBookOfBusiness - formData.lastYearSameMonthBookOfBusiness) / formData.lastYearSameMonthBookOfBusiness * 100;
+
+    // Use the higher value between salesGrowth and businessGrowth
+    const dominantGrowth = Math.max(salesGrowth, businessGrowth);
+
+      // Determine the base bonus percentage based on the higher growth
+  let bonusPercentage = settings.bonusPercentages[0];
+  for (let i = 1; i < 5; i++) {
+    if (dominantGrowth >= settings.salesGrowthThresholds[i]) {
+      bonusPercentage = settings.bonusPercentages[i];
     }
-
-    const retainedClientsBonus = (formData.retainedClientsEmployee / formData.totalRetainedClients) * settings.retainedClientsBonusMultiplier
-    const newClientsBonus = (formData.newClientsEmployee / formData.totalNewClients) * settings.newClientsBonusMultiplier
-    const clientsManagedBonus = (formData.totalClientsManaged / formData.totalClientsCompany) * settings.clientsManagedBonusMultiplier
-    const policiesBonus = (formData.numberOfPoliciesEmployee / formData.totalNumberOfPolicies) * settings.policiesBonusMultiplier
-
-    const totalBonus = retainedClientsBonus + newClientsBonus + clientsManagedBonus + policiesBonus
-
+  }
+  
+    // Calculate the total available bonus percentage (e.g., 5%)
+    const totalBonusPercentage = settings.totalBonusPercentage || 5;  // Default to 5% if not set
+  
+    // Calculate the total of all multipliers
+    const totalMultiplier = settings.retainedClientsBonusMultiplier + settings.newClientsBonusMultiplier + 
+                            settings.clientsManagedBonusMultiplier + settings.policiesBonusMultiplier;
+  
+    // Distribute the total bonus percentage proportionally to the multipliers
+    const retainedClientsBonusPercentage = (settings.retainedClientsBonusMultiplier / totalMultiplier) * totalBonusPercentage;
+    const newClientsBonusPercentage = (settings.newClientsBonusMultiplier / totalMultiplier) * totalBonusPercentage;
+    const clientsManagedBonusPercentage = (settings.clientsManagedBonusMultiplier / totalMultiplier) * totalBonusPercentage;
+    const policiesBonusPercentage = (settings.policiesBonusMultiplier / totalMultiplier) * totalBonusPercentage;
+  
+    // Calculate each bonus component based on the weighted bonus percentage and employee's performance
+    const retainedClientsBonus = (formData.retainedClientsEmployee / formData.totalRetainedClients) * retainedClientsBonusPercentage;
+    const newClientsBonus = (formData.newClientsEmployee / formData.totalNewClients) * newClientsBonusPercentage ;
+    const clientsManagedBonus = (formData.totalClientsManaged / formData.totalClientsCompany) * clientsManagedBonusPercentage ;
+    const policiesBonus = (formData.numberOfPoliciesEmployee / formData.totalNumberOfPolicies) * policiesBonusPercentage ;
+  
+    // Sum up the total bonus
+    const totalBonus = retainedClientsBonus + newClientsBonus + clientsManagedBonus + policiesBonus;
+  
     setBonusReport({
       name: formData.name,
       employeeNumber: formData.employeeNumber,
@@ -117,8 +137,9 @@ export default function EmployeeBonusCalculator() {
       clientsManagedBonus,
       policiesBonus,
       totalBonus
-    })
-  }
+    });
+  };
+  
 
   const clearForm = () => {
     setFormData({
@@ -145,10 +166,11 @@ export default function EmployeeBonusCalculator() {
       bonusPercentages: [1, 2, 3, 4, 5],
       salesGrowthThresholds: [0, 5, 10, 15, 20],
       businessGrowthThresholds: [0, 2.5, 5, 7.5, 10],
-      retainedClientsBonusMultiplier: 1000,
-      newClientsBonusMultiplier: 2000,
-      clientsManagedBonusMultiplier: 1500,
-      policiesBonusMultiplier: 500
+      retainedClientsBonusMultiplier: 1,
+      newClientsBonusMultiplier: 1.5,
+      clientsManagedBonusMultiplier: 1,
+      policiesBonusMultiplier: 1.25,
+      totalBonusPercentage: 5 // Default value
     })
     toast({
       title: "Settings Cleared",
@@ -563,44 +585,44 @@ export default function EmployeeBonusCalculator() {
                 </TableHeader>
                 <TableBody>
                   <TableRow>
-                    <TableCell className="font-medium">Employee Name</TableCell>
+                    <TableCell className="font-medium text-left">Employee Name</TableCell>
                     <TableCell>{bonusReport.name}</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium">Employee Number</TableCell>
+                    <TableCell className="font-medium text-left">Employee Number</TableCell>
                     <TableCell>{bonusReport.employeeNumber}</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium">Sales Growth</TableCell>
+                    <TableCell className="font-medium text-left">Sales Growth</TableCell>
                     <TableCell>{bonusReport.salesGrowth.toFixed(2)}%</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium">Business Growth</TableCell>
+                    <TableCell className="font-medium text-left">Business Growth</TableCell>
                     <TableCell>{bonusReport.businessGrowth.toFixed(2)}%</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium">Bonus Percentage</TableCell>
+                    <TableCell className="font-medium text-left">Total Bonus Percentage</TableCell>
                     <TableCell>{bonusReport.bonusPercentage}%</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium">Retained Clients Bonus</TableCell>
-                    <TableCell>${parseFloat(bonusReport.retainedClientsBonus.toFixed(2))}</TableCell>
+                    <TableCell className="font-medium text-left">Retained Clients Bonus Percentage</TableCell>
+                    <TableCell>{bonusReport.retainedClientsBonus.toFixed(2)}%</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium">New Clients Bonus</TableCell>
-                    <TableCell>${parseFloat(bonusReport.newClientsBonus.toFixed(2))}</TableCell>
+                    <TableCell className="font-medium text-left">New Clients Bonus Percentage</TableCell>
+                    <TableCell>{bonusReport.newClientsBonus.toFixed(2)}%</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium">Clients Managed Bonus</TableCell>
-                    <TableCell>${parseFloat(bonusReport.clientsManagedBonus.toFixed(2))}</TableCell>
+                    <TableCell className="font-medium text-left">Clients Managed Bonus Percentage</TableCell>
+                    <TableCell>{bonusReport.clientsManagedBonus.toFixed(2)}%</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium">Policies Bonus</TableCell>
-                    <TableCell>${parseFloat(bonusReport.policiesBonus.toFixed(2))}</TableCell>
+                    <TableCell className="font-medium text-left">Policies Bonus Percentage</TableCell>
+                    <TableCell>{bonusReport.policiesBonus.toFixed(2)}%</TableCell>
                   </TableRow>
                   <TableRow className="bg-secondary/5">
-                    <TableCell className="font-bold text-lg">Total Bonus</TableCell>
-                    <TableCell className="font-bold text-lg">${parseFloat(bonusReport.totalBonus.toFixed(2))}</TableCell>
+                    <TableCell className="font-bold text-lg text-left">Total Employee Bonus Percentage</TableCell>
+                    <TableCell className="font-bold text-lg">{parseFloat(bonusReport.totalBonus.toFixed(2))}%</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
