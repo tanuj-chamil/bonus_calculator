@@ -1,4 +1,6 @@
-import { useState, useRef, useEffect } from 'react'
+"use client"
+
+import { useState, useRef } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,7 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { DollarSign, TrendingUp, Users, Briefcase, ShieldCheck, UserPlus, Layers, Calculator, Settings, Save, Download, Trash2, Printer, User, Hash } from 'lucide-react'
+import { DollarSign, TrendingUp, Users, Briefcase, ShieldCheck, UserPlus, Layers, Calculator, Settings, Save, Download, Trash2, Printer, User } from 'lucide-react'
 
 const formatNumber = (value: number) => {
   return new Intl.NumberFormat('en-US').format(value)
@@ -26,16 +28,20 @@ const parseFormattedNumber = (value: string) => {
 export default function EmployeeBonusCalculator() {
   const [formData, setFormData] = useState({
     name: '',
-    employeeNumber: '',
-    currentMonthSales: 70000,
-    lastYearSameMonthSales: 50000,
+    currentYearQ1Sales: 100000,
+    currentYearQ2Sales: 120000,
+    currentYearQ3Sales: 130000,
+    currentYearQ4Sales: 150000,
+    lastYearQ1Sales: 90000,
+    lastYearQ2Sales: 110000,
+    lastYearQ3Sales: 120000,
+    lastYearQ4Sales: 140000,
     currentMonthBookOfBusiness: 2500000,
     lastYearSameMonthBookOfBusiness: 2225000,
-    retainedClientsEmployee: 50,
+    retainedClients: 50,
     totalRetainedClients: 500,
     newClientsEmployee: 5,
     totalNewClients: 20,
-    totalClientsManaged: 100,
     totalClientsCompany: 500,
     numberOfPoliciesEmployee: 10,
     totalNumberOfPolicies: 27
@@ -43,7 +49,6 @@ export default function EmployeeBonusCalculator() {
 
   interface BonusReport {
     name: string;
-    employeeNumber: string;
     salesGrowth: number;
     businessGrowth: number;
     bonusPercentage: number;
@@ -52,8 +57,13 @@ export default function EmployeeBonusCalculator() {
     clientsManagedBonus: number;
     policiesBonus: number;
     totalBonus: number;
+    q1Growth: number;
+    q2Growth: number;
+    q3Growth: number;
+    q4Growth: number;
+    annualGrowth: number;
   }
-  
+
   const [bonusReport, setBonusReport] = useState<BonusReport | null>(null)
 
   const [settings, setSettings] = useState({
@@ -62,9 +72,9 @@ export default function EmployeeBonusCalculator() {
     businessGrowthThresholds: [0, 2.5, 5, 7.5, 10],
     retainedClientsBonusMultiplier: 1,
     newClientsBonusMultiplier: 1.5,
-    clientsManagedBonusMultiplier: 1,
-    policiesBonusMultiplier: 1.25,
-    totalBonusPercentage: 5 // Default value
+    clientsManagedBonusMultiplier: 1.25,
+    policiesBonusMultiplier: 1.2,
+    totalBonusPercentage: 5
   })
 
   const reportRef = useRef<HTMLDivElement>(null)
@@ -74,14 +84,14 @@ export default function EmployeeBonusCalculator() {
     const { name, value } = e.target
     setFormData(prevState => ({
       ...prevState,
-      [name]: name === 'name' || name === 'employeeNumber' ? value : parseFormattedNumber(value)
+      [name]: name === 'name' ? value : parseFormattedNumber(value)
     }))
   }
 
-  const handleSettingsChange = (name: string, value: string, index: number | null = null) => {
+  const handleSettingsChange = (name: keyof typeof settings, value: string, index: number | null = null) => {
     setSettings(prevState => {
       if (index !== null) {
-        const newArray = [...(prevState[name as keyof typeof settings] as number[])]
+        const newArray = [...(prevState[name] as number[])]
         newArray[index] = parseFloat(value)
         return { ...prevState, [name]: newArray }
       }
@@ -89,46 +99,52 @@ export default function EmployeeBonusCalculator() {
     })
   }
 
+  const calculateGrowth = (current: number, previous: number): number => {
+    return ((current - previous) / previous) * 100
+  }
+
   const calculateBonus = () => {
-    const salesGrowth = (formData.currentMonthSales - formData.lastYearSameMonthSales) / formData.lastYearSameMonthSales * 100;
-    const businessGrowth = (formData.currentMonthBookOfBusiness - formData.lastYearSameMonthBookOfBusiness) / formData.lastYearSameMonthBookOfBusiness * 100;
+    const currentYearTotal = formData.currentYearQ1Sales + formData.currentYearQ2Sales + formData.currentYearQ3Sales + formData.currentYearQ4Sales
+    const lastYearTotal = formData.lastYearQ1Sales + formData.lastYearQ2Sales + formData.lastYearQ3Sales + formData.lastYearQ4Sales
+
+    const salesGrowth = calculateGrowth(currentYearTotal, lastYearTotal)
+    const businessGrowth = calculateGrowth(formData.currentMonthBookOfBusiness, formData.lastYearSameMonthBookOfBusiness)
 
     // Use the higher value between salesGrowth and businessGrowth
-    const dominantGrowth = Math.max(salesGrowth, businessGrowth);
+    const dominantGrowth = Math.max(salesGrowth, businessGrowth)
 
-      // Determine the base bonus percentage based on the higher growth
-  let bonusPercentage = settings.bonusPercentages[0];
-  for (let i = 1; i < 5; i++) {
-    if (dominantGrowth >= settings.salesGrowthThresholds[i]) {
-      bonusPercentage = settings.bonusPercentages[i];
+    // Determine the base bonus percentage based on the higher growth
+    let bonusPercentage = settings.bonusPercentages[0]
+    for (let i = 1; i < 5; i++) {
+      if (dominantGrowth >= settings.salesGrowthThresholds[i]) {
+        bonusPercentage = settings.bonusPercentages[i]
+      }
     }
-  }
-  
-    // Calculate the total available bonus percentage (e.g., 5%)
-    const totalBonusPercentage = settings.totalBonusPercentage || 5;  // Default to 5% if not set
-  
+
+    // Calculate the total available bonus percentage
+    const totalBonusPercentage = bonusPercentage
+
     // Calculate the total of all multipliers
     const totalMultiplier = settings.retainedClientsBonusMultiplier + settings.newClientsBonusMultiplier + 
-                            settings.clientsManagedBonusMultiplier + settings.policiesBonusMultiplier;
-  
+                            settings.clientsManagedBonusMultiplier + settings.policiesBonusMultiplier
+
     // Distribute the total bonus percentage proportionally to the multipliers
-    const retainedClientsBonusPercentage = (settings.retainedClientsBonusMultiplier / totalMultiplier) * totalBonusPercentage;
-    const newClientsBonusPercentage = (settings.newClientsBonusMultiplier / totalMultiplier) * totalBonusPercentage;
-    const clientsManagedBonusPercentage = (settings.clientsManagedBonusMultiplier / totalMultiplier) * totalBonusPercentage;
-    const policiesBonusPercentage = (settings.policiesBonusMultiplier / totalMultiplier) * totalBonusPercentage;
-  
+    const retainedClientsBonusPercentage = (settings.retainedClientsBonusMultiplier / totalMultiplier) * totalBonusPercentage
+    const newClientsBonusPercentage = (settings.newClientsBonusMultiplier / totalMultiplier) * totalBonusPercentage
+    const clientsManagedBonusPercentage = (settings.clientsManagedBonusMultiplier / totalMultiplier) * totalBonusPercentage
+    const policiesBonusPercentage = (settings.policiesBonusMultiplier / totalMultiplier) * totalBonusPercentage
+
     // Calculate each bonus component based on the weighted bonus percentage and employee's performance
-    const retainedClientsBonus = (formData.retainedClientsEmployee / formData.totalRetainedClients) * retainedClientsBonusPercentage;
-    const newClientsBonus = (formData.newClientsEmployee / formData.totalNewClients) * newClientsBonusPercentage ;
-    const clientsManagedBonus = (formData.totalClientsManaged / formData.totalClientsCompany) * clientsManagedBonusPercentage ;
-    const policiesBonus = (formData.numberOfPoliciesEmployee / formData.totalNumberOfPolicies) * policiesBonusPercentage ;
-  
+    const retainedClientsBonus = retainedClientsBonusPercentage
+    const newClientsBonus = newClientsBonusPercentage
+    const clientsManagedBonus = clientsManagedBonusPercentage
+    const policiesBonus = policiesBonusPercentage
+
     // Sum up the total bonus
-    const totalBonus = retainedClientsBonus + newClientsBonus + clientsManagedBonus + policiesBonus;
-  
+    const totalBonus = retainedClientsBonus + newClientsBonus + clientsManagedBonus + policiesBonus
+
     setBonusReport({
       name: formData.name,
-      employeeNumber: formData.employeeNumber,
       salesGrowth,
       businessGrowth,
       bonusPercentage,
@@ -136,24 +152,32 @@ export default function EmployeeBonusCalculator() {
       newClientsBonus,
       clientsManagedBonus,
       policiesBonus,
-      totalBonus
-    });
-  };
-  
+      totalBonus,
+      q1Growth: calculateGrowth(formData.currentYearQ1Sales, formData.lastYearQ1Sales),
+      q2Growth: calculateGrowth(formData.currentYearQ2Sales, formData.lastYearQ2Sales),
+      q3Growth: calculateGrowth(formData.currentYearQ3Sales, formData.lastYearQ3Sales),
+      q4Growth: calculateGrowth(formData.currentYearQ4Sales, formData.lastYearQ4Sales),
+      annualGrowth: salesGrowth
+    })
+  }
 
   const clearForm = () => {
     setFormData({
       name: '',
-      employeeNumber: '',
-      currentMonthSales: 0,
-      lastYearSameMonthSales: 0,
+      currentYearQ1Sales: 0,
+      currentYearQ2Sales: 0,
+      currentYearQ3Sales: 0,
+      currentYearQ4Sales: 0,
+      lastYearQ1Sales: 0,
+      lastYearQ2Sales: 0,
+      lastYearQ3Sales: 0,
+      lastYearQ4Sales: 0,
       currentMonthBookOfBusiness: 0,
       lastYearSameMonthBookOfBusiness: 0,
-      retainedClientsEmployee: 0,
+      retainedClients: 0,
       totalRetainedClients: 0,
       newClientsEmployee: 0,
       totalNewClients: 0,
-      totalClientsManaged: 0,
       totalClientsCompany: 0,
       numberOfPoliciesEmployee: 0,
       totalNumberOfPolicies: 0
@@ -168,9 +192,9 @@ export default function EmployeeBonusCalculator() {
       businessGrowthThresholds: [0, 2.5, 5, 7.5, 10],
       retainedClientsBonusMultiplier: 1,
       newClientsBonusMultiplier: 1.5,
-      clientsManagedBonusMultiplier: 1,
-      policiesBonusMultiplier: 1.25,
-      totalBonusPercentage: 5 // Default value
+      clientsManagedBonusMultiplier: 1.25,
+      policiesBonusMultiplier: 1.2,
+      totalBonusPercentage: 5
     })
     toast({
       title: "Settings Cleared",
@@ -180,53 +204,63 @@ export default function EmployeeBonusCalculator() {
 
   const saveSettings = () => {
     localStorage.setItem('bonusCalculatorSettings', JSON.stringify(settings))
+    toast({
+      title: "Settings Saved",
+      description: "Your settings have been saved to local storage.",
+    })
   }
 
   const loadSettings = () => {
     const savedSettings = localStorage.getItem('bonusCalculatorSettings')
     if (savedSettings) {
-      setSettings(JSON.parse(savedSettings))
+      try {
+        const loadedSettings = JSON.parse(savedSettings)
+        setSettings(loadedSettings)
+        toast({
+          title: "Settings Loaded",
+          description: "Your settings have been successfully loaded from local storage.",
+        })
+      } catch {
+        toast({
+          title: "Error",
+          description: "Failed to load settings. Please try again.",
+          variant: "destructive",
+        })
+      }
+    } else {
+      toast({
+        title: "No Settings Found",
+        description: "No saved settings were found in local storage.",
+      })
     }
   }
-
-  useEffect(() => {
-    loadSettings()
-  }, [])
 
   const generateReport = () => {
     if (reportRef.current) {
       const printContent = reportRef.current.innerHTML
       const printWindow = window.open('', '_blank')
-
-      if (!printWindow) {
-        toast({
-          title: "Error",
-          description: "Please allow popups for this site to print the report.",
-          variant: "destructive",
-        })
-        return
-      }
-    else {
+      if (printWindow) {
         printWindow.document.write(`
-            <html>
-              <head>
-                <title>Bonus Calculation Report</title>
-                <style>
-                  body { font-family: Arial, sans-serif; }
-                  table { width: 100%; border-collapse: collapse; }
-                  th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                  th { background-color: #f2f2f2; }
-                </style>
-              </head>
-              <body>
-                ${printContent}
-              </body>
-            </html>
-          `)
-          printWindow.document.close()
-          printWindow.print()
+        <html>
+          <head>
+            <title>Bonus Calculation Report</title>
+            <style>
+              body { font-family: Arial, sans-serif; }
+              table { width: 100%; border-collapse: collapse; }
+              th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+              th { background-color: #f2f2f2; }
+            </style>
+          </head>
+          <body>
+            ${printContent}
+          </body>
+        </html>
+      `)
+      if (printWindow) {
+        printWindow.print()
+      }
     }
-    }
+  }
   }
 
   return (
@@ -304,6 +338,7 @@ export default function EmployeeBonusCalculator() {
                     { label: 'New Clients', key: 'newClientsBonusMultiplier' },
                     { label: 'Clients Managed', key: 'clientsManagedBonusMultiplier' },
                     { label: 'Policies', key: 'policiesBonusMultiplier' },
+                    { label: 'Total Bonus Percentage', key: 'totalBonusPercentage' },
                   ].map(({ label, key }) => (
                     <div key={key} className="flex items-center space-x-2">
                       <Label htmlFor={key} className="w-32">{label}:</Label>
@@ -311,9 +346,10 @@ export default function EmployeeBonusCalculator() {
                         id={key}
                         type="number"
                         value={parseFloat(settings[key as keyof typeof settings].toString())}
-                        onChange={(e) => handleSettingsChange(key, e.target.value)}
+                        onChange={(e) => handleSettingsChange(key as keyof typeof settings, e.target.value)}
                         className="w-24"
                       />
+                      {key === 'totalBonusPercentage' && <span>%</span>}
                     </div>
                   ))}
                 </div>
@@ -372,43 +408,130 @@ export default function EmployeeBonusCalculator() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="employeeNumber" className="flex items-center gap-2">
-                  <Hash className="h-4 w-4 text-primary" />
-                  Employee Number
+                <Label htmlFor="totalClientsCompany" className="flex items-center gap-2 ">
+                  <Users className="h-4 w-4 text-primary" />
+                  Total Clients (Company)
                 </Label>
                 <Input
-                  id="employeeNumber"
-                  name="employeeNumber"
+                  id="totalClientsCompany"
+                  name="totalClientsCompany"
                   type="text"
-                  value={formData.employeeNumber}
+                  value={formatNumber(formData.totalClientsCompany)}
                   onChange={handleInputChange}
                   className="border-primary/20"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="currentMonthSales" className="flex items-center gap-2">
+                <Label htmlFor="currentYearQ1Sales" className="flex items-center gap-2">
                   <DollarSign className="h-4 w-4 text-primary" />
-                  Current Month Sales
+                  Current Year Q1 Sales
                 </Label>
                 <Input
-                  id="currentMonthSales"
-                  name="currentMonthSales"
+                  id="currentYearQ1Sales"
+                  name="currentYearQ1Sales"
                   type="text"
-                  value={formatNumber(formData.currentMonthSales)}
+                  value={formatNumber(formData.currentYearQ1Sales)}
                   onChange={handleInputChange}
                   className="border-primary/20"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="lastYearSameMonthSales" className="flex items-center gap-2">
+                <Label htmlFor="lastYearQ1Sales" className="flex items-center gap-2">
                   <DollarSign className="h-4 w-4 text-primary" />
-                  Last Year Same Month Sales
+                  Last Year Q1 Sales
                 </Label>
                 <Input
-                  id="lastYearSameMonthSales"
-                  name="lastYearSameMonthSales"
+                  id="lastYearQ1Sales"
+                  name="lastYearQ1Sales"
                   type="text"
-                  value={formatNumber(formData.lastYearSameMonthSales)}
+                  value={formatNumber(formData.lastYearQ1Sales)}
+                  onChange={handleInputChange}
+                  className="border-primary/20"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="currentYearQ2Sales" className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-primary" />
+                  Current Year Q2 Sales
+                </Label>
+                <Input
+                  id="currentYearQ2Sales"
+                  name="currentYearQ2Sales"
+                  type="text"
+                  value={formatNumber(formData.currentYearQ2Sales)}
+                  onChange={handleInputChange}
+                  className="border-primary/20"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lastYearQ2Sales" className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-primary" />
+                  Last Year Q2 Sales
+                </Label>
+                <Input
+                  id="lastYearQ2Sales"
+                  name="lastYearQ2Sales"
+                  type="text"
+                  value={formatNumber(formData.lastYearQ2Sales)}
+                  onChange={handleInputChange}
+                  className="border-primary/20"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="currentYearQ3Sales" className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-primary" />
+                  Current Year Q3 Sales
+                </Label>
+                <Input
+                  id="currentYearQ3Sales"
+                  name="currentYearQ3Sales"
+                  type="text"
+                  value={formatNumber(formData.currentYearQ3Sales)}
+                  onChange={handleInputChange}
+                  className="border-primary/20"
+                />
+              </div>
+              
+
+              <div className="space-y-2">
+                <Label htmlFor="lastYearQ3Sales" className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-primary" />
+                  Last Year Q3 Sales
+                </Label>
+                <Input
+                  id="lastYearQ3Sales"
+                  name="lastYearQ3Sales"
+                  type="text"
+                  value={formatNumber(formData.lastYearQ3Sales)}
+                  onChange={handleInputChange}
+                  className="border-primary/20"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="currentYearQ4Sales" className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-primary" />
+                  Current Year Q4 Sales
+                </Label>
+                <Input
+                  id="currentYearQ4Sales"
+                  name="currentYearQ4Sales"
+                  type="text"
+                  value={formatNumber(formData.currentYearQ4Sales)}
+                  onChange={handleInputChange}
+                  className="border-primary/20"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="lastYearQ4Sales" className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-primary" />
+                  Last Year Q4 Sales
+                </Label>
+                <Input
+                  id="lastYearQ4Sales"
+                  name="lastYearQ4Sales"
+                  type="text"
+                  value={formatNumber(formData.lastYearQ4Sales)}
                   onChange={handleInputChange}
                   className="border-primary/20"
                 />
@@ -442,15 +565,15 @@ export default function EmployeeBonusCalculator() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="retainedClientsEmployee" className="flex items-center gap-2">
+                <Label htmlFor="retainedClients" className="flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-primary" />
-                  Retained Clients (Employee)
+                  Retained Clients
                 </Label>
                 <Input
-                  id="retainedClientsEmployee"
-                  name="retainedClientsEmployee"
+                  id="retainedClients"
+                  name="retainedClients"
                   type="text"
-                  value={formatNumber(formData.retainedClientsEmployee)}
+                  value={formatNumber(formData.retainedClients)}
                   onChange={handleInputChange}
                   className="border-primary/20"
                 />
@@ -493,34 +616,6 @@ export default function EmployeeBonusCalculator() {
                   name="totalNewClients"
                   type="text"
                   value={formatNumber(formData.totalNewClients)}
-                  onChange={handleInputChange}
-                  className="border-primary/20"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="totalClientsManaged" className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-primary" />
-                  Total Clients Managed (Employee)
-                </Label>
-                <Input
-                  id="totalClientsManaged"
-                  name="totalClientsManaged"
-                  type="text"
-                  value={formatNumber(formData.totalClientsManaged)}
-                  onChange={handleInputChange}
-                  className="border-primary/20"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="totalClientsCompany" className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-primary" />
-                  Total Clients (Company)
-                </Label>
-                <Input
-                  id="totalClientsCompany"
-                  name="totalClientsCompany"
-                  type="text"
-                  value={formatNumber(formData.totalClientsCompany)}
                   onChange={handleInputChange}
                   className="border-primary/20"
                 />
@@ -585,44 +680,56 @@ export default function EmployeeBonusCalculator() {
                 </TableHeader>
                 <TableBody>
                   <TableRow>
-                    <TableCell className="font-medium text-left">Employee Name</TableCell>
+                    <TableCell className="font-medium">Employee Name</TableCell>
                     <TableCell>{bonusReport.name}</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium text-left">Employee Number</TableCell>
-                    <TableCell>{bonusReport.employeeNumber}</TableCell>
+                    <TableCell className="font-medium">Q1 Growth</TableCell>
+                    <TableCell>{bonusReport.q1Growth.toFixed(2)}%</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium text-left">Sales Growth</TableCell>
-                    <TableCell>{bonusReport.salesGrowth.toFixed(2)}%</TableCell>
+                    <TableCell className="font-medium">Q2 Growth</TableCell>
+                    <TableCell>{bonusReport.q2Growth.toFixed(2)}%</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium text-left">Business Growth</TableCell>
+                    <TableCell className="font-medium">Q3 Growth</TableCell>
+                    <TableCell>{bonusReport.q3Growth.toFixed(2)}%</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-medium">Q4 Growth</TableCell>
+                    <TableCell>{bonusReport.q4Growth.toFixed(2)}%</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-medium">Annual Growth</TableCell>
+                    <TableCell>{bonusReport.annualGrowth.toFixed(2)}%</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-medium">Business Growth</TableCell>
                     <TableCell>{bonusReport.businessGrowth.toFixed(2)}%</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium text-left">Total Bonus Percentage</TableCell>
+                    <TableCell className="font-medium">Bonus Percentage</TableCell>
                     <TableCell>{bonusReport.bonusPercentage}%</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium text-left">Retained Clients Bonus Percentage</TableCell>
-                    <TableCell>{bonusReport.retainedClientsBonus.toFixed(2)}%</TableCell>
+                    <TableCell className="font-medium">Retained Clients Bonus</TableCell>
+                    <TableCell>{formatNumber(parseFloat(bonusReport.retainedClientsBonus.toFixed(2)))}%</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium text-left">New Clients Bonus Percentage</TableCell>
-                    <TableCell>{bonusReport.newClientsBonus.toFixed(2)}%</TableCell>
+                    <TableCell className="font-medium">New Clients Bonus</TableCell>
+                    <TableCell>{formatNumber(parseFloat(bonusReport.newClientsBonus.toFixed(2)))}%</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium text-left">Clients Managed Bonus Percentage</TableCell>
-                    <TableCell>{bonusReport.clientsManagedBonus.toFixed(2)}%</TableCell>
+                    <TableCell className="font-medium">Clients Managed Bonus</TableCell>
+                    <TableCell>{formatNumber(parseFloat(bonusReport.clientsManagedBonus.toFixed(2)))}%</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium text-left">Policies Bonus Percentage</TableCell>
-                    <TableCell>{bonusReport.policiesBonus.toFixed(2)}%</TableCell>
+                    <TableCell className="font-medium">Policies Bonus</TableCell>
+                    <TableCell>{formatNumber(parseFloat(bonusReport.policiesBonus.toFixed(2)))}%</TableCell>
                   </TableRow>
                   <TableRow className="bg-secondary/5">
-                    <TableCell className="font-bold text-lg text-left">Total Employee Bonus Percentage</TableCell>
-                    <TableCell className="font-bold text-lg">{parseFloat(bonusReport.totalBonus.toFixed(2))}%</TableCell>
+                    <TableCell className="font-bold text-lg">Total Bonus</TableCell>
+                    <TableCell className="font-bold text-lg">{formatNumber(parseFloat(bonusReport.totalBonus.toFixed(2)))}%</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
